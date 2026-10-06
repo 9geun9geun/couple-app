@@ -2,14 +2,32 @@ name: Supabase keepalive
 
 on:
   schedule:
-    - cron: '0 0 */3 * *'   # 3일마다
+    - cron: '0 0 */3 * *'   # 3일마다: Supabase 핑
+    - cron: '0 0 1 * *'     # 매달 1일: 커밋해서 GitHub 60일 비활성 방지
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - run: |
+      - name: Ping Supabase
+        run: |
           curl -fsS -o /dev/null \
             "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/keepalive?select=id&limit=1" \
             -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}"
+
+      - uses: actions/checkout@v4
+        if: github.event.schedule == '0 0 1 * *' || github.event_name == 'workflow_dispatch'
+
+      - name: Monthly commit
+        if: github.event.schedule == '0 0 1 * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/last-keepalive.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last-keepalive.txt
+          git commit -m "chore: keepalive [skip ci]"
+          git push
